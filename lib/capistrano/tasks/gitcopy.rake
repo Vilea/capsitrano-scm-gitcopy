@@ -1,12 +1,17 @@
 namespace :gitcopy do
 
   archive_name =  "archive.#{ DateTime.now.strftime('%Y%m%d%m%s') }.tar.gz" 
+  temp_clone = "clone"
 
   desc "Archive files to #{archive_name}"
   file archive_name do |file| 
     system "git ls-remote #{fetch(:repo_url)} | grep #{fetch(:branch)}"
     if $?.exitstatus == 0
-      system "git archive --remote #{fetch(:repo_url)} --format=tar #{fetch(:branch)}:#{fetch(:sub_directory)} | gzip > #{ archive_name }"
+      #system "git archive --remote #{fetch(:repo_url)} --format=tar #{fetch(:branch)}:#{fetch(:sub_directory)} | gzip > #{ archive_name }"
+      # git archive --remote is only supported via git protocol :(
+      system "git clone #{fetch(:repo_url)} #{ temp_clone }"
+      system "cd #{ temp_clone } && git checkout #{fetch(:branch)} && git archive --format=tar #{fetch(:branch)}:#{fetch(:sub_directory)} | gzip > #{ File.join('..', archive_name) }"
+      system "cd .. && rm -rf #{ temp_clone }"
     else
       puts "Can't find commit for: #{fetch(:branch)}"
     end
@@ -33,6 +38,7 @@ namespace :gitcopy do
   task :clean do |t|
     # Delete the local archive
     File.delete archive_name if File.exists? archive_name
+    FileUtils.rm_r temp_clone if File.exists? temp_clone
   end
   after 'deploy:finished', 'gitcopy:clean'
 
